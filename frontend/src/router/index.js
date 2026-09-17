@@ -7,6 +7,7 @@ import Sites from '../views/Sites.vue'
 import Units from '../views/Units.vue'
 import Finds from '../views/Finds.vue'
 import Materials from '../views/Materials.vue'
+import Crews from '../views/Crews.vue'
 
 const routes = [
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
@@ -16,6 +17,7 @@ const routes = [
     children: [
       { path: '', name: 'overview', component: Overview },
       { path: 'sites', name: 'sites', component: Sites },
+      { path: 'crews', name: 'crews', component: Crews },
       { path: 'units', name: 'units', component: Units },
       { path: 'finds', name: 'finds', component: Finds },
       { path: 'materials', name: 'materials', component: Materials }

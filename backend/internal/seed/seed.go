@@ -107,5 +107,30 @@ func Run(db *gorm.DB) {
 		db.Create(&finds[i])
 	}
 
+	persons := []models.CrewPerson{
+		{DisplayName: "韩铁柱", RoleLabel: "技工", Active: true},
+		{DisplayName: "苏晓萌", RoleLabel: "学生", Active: true},
+		{DisplayName: "赵德安", RoleLabel: "监理", Active: true},
+		{DisplayName: "林小满", RoleLabel: "学生", Active: true},
+	}
+	for i := range persons {
+		db.Create(&persons[i])
+	}
+
+	// 连续两天的工地排班（二里头遗址发掘区A）
+	day1 := *date("2024-03-12")
+	day2 := *date("2024-03-13")
+	shifts := []models.CrewShift{
+		{SiteID: sites[0].ID, WorkDate: day1, PersonID: persons[0].ID, Slot: "full"},
+		{SiteID: sites[0].ID, WorkDate: day1, PersonID: persons[1].ID, Slot: "morning"},
+		{SiteID: sites[0].ID, WorkDate: day1, PersonID: persons[2].ID, Slot: "afternoon"},
+		{SiteID: sites[0].ID, WorkDate: day2, PersonID: persons[0].ID, Slot: "full"},
+		{SiteID: sites[0].ID, WorkDate: day2, PersonID: persons[1].ID, Slot: "full"},
+		{SiteID: sites[0].ID, WorkDate: day2, PersonID: persons[3].ID, Slot: "morning"},
+	}
+	for i := range shifts {
+		db.Create(&shifts[i])
+	}
+
 	log.Println("seed data inserted")
 }

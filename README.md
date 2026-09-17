@@ -1,6 +1,6 @@
 # 考古发掘出土文物编目系统（DigCatalog）
 
-面向考古工地出土文物登记与编目的全栈演示项目：支持发掘工地、探方/发掘单位、出土文物、材质字典的 CRUD，以及概览统计。
+面向考古工地出土文物登记与编目的全栈演示项目：支持发掘工地、探方/发掘单位、出土文物、材质字典的 CRUD，挂靠工地的人员排班，以及概览统计。
 
 ## 技术栈
 
@@ -47,10 +47,11 @@ docker compose up --build
 
 1. **登录认证** — 管理员 / 记录员角色，JWT 鉴权
 2. **发掘工地 Site** — 名称、时代、经纬度、负责人
-3. **探方/发掘单位 Unit** — 所属工地、编号、深度区间、地层简述
-4. **出土文物 Find** — 所属探方、登记号、器物类型、材质、完整度、出土日期、描述、存放位置
-5. **材质分类 Material** — 名称、描述（字典表）
-6. **概览页** — 工地数、探方数、文物总数、按器物类型统计
+3. **工地排班 Crew** — 挂靠工地的人员名册（姓名/角色/在岗状态）与按日排班（上午 morning / 下午 afternoon / 全天 full），同一人同工地同日唯一，冲突返回 409
+4. **探方/发掘单位 Unit** — 所属工地、编号、深度区间、地层简述
+5. **出土文物 Find** — 所属探方、登记号、器物类型、材质、完整度、出土日期、描述、存放位置
+6. **材质分类 Material** — 名称、描述（字典表）
+7. **概览页** — 工地数、探方数、文物总数、按器物类型统计
 
 ## API 前缀
 
@@ -58,6 +59,8 @@ docker compose up --build
 
 - `POST /api/auth/login`
 - `GET|POST|PUT|DELETE /api/sites`
+- `GET|POST|PUT|DELETE /api/crew-persons`（人员名册，`GET` 可按 `active` 过滤）
+- `GET|POST|PUT|DELETE /api/crew-shifts`（`GET` 支持 `siteId`、`personId`、`startDate`、`endDate`（YYYY-MM-DD）查询；同人同日同工地冲突返回 `409`）
 - `GET|POST|PUT|DELETE /api/units`
 - `GET|POST|PUT|DELETE /api/finds`
 - `GET|POST|PUT|DELETE /api/materials`

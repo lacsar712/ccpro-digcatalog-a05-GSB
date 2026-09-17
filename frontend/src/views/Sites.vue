@@ -26,6 +26,7 @@
             <td>{{ item.latitude }}, {{ item.longitude }}</td>
             <td>{{ item.manager || '-' }}</td>
             <td>
+              <button class="btn secondary small" @click="openCrews(item)">排班</button>
               <button class="btn secondary small" @click="openEdit(item)">编辑</button>
               <button class="btn danger small" @click="remove(item)">删除</button>
             </td>
@@ -79,7 +80,10 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import api from '../api/http'
+
+const router = useRouter()
 
 const list = ref([])
 const error = ref('')
@@ -102,6 +106,10 @@ async function load() {
   } catch (e) {
     error.value = e.response?.data?.error || '加载失败'
   }
+}
+
+function openCrews(item) {
+  router.push({ name: 'crews', query: { siteId: item.id } })
 }
 
 function openCreate() {
