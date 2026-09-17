@@ -45,6 +45,8 @@ func main() {
 		&models.Unit{},
 		&models.Material{},
 		&models.Find{},
+		&models.CrewPerson{},
+		&models.CrewShift{},
 	); err != nil {
 		log.Fatalf("auto migrate failed: %v", err)
 	}
@@ -86,6 +88,16 @@ func main() {
 			auth.POST("/finds", h.CreateFind)
 			auth.PUT("/finds/:id", h.UpdateFind)
 			auth.DELETE("/finds/:id", h.DeleteFind)
+
+			auth.GET("/crew-persons", h.ListCrewPersons)
+			auth.POST("/crew-persons", h.CreateCrewPerson)
+			auth.PUT("/crew-persons/:id", h.UpdateCrewPerson)
+			auth.DELETE("/crew-persons/:id", h.DeleteCrewPerson)
+
+			auth.GET("/crew-shifts", h.ListCrewShifts)
+			auth.POST("/crew-shifts", h.CreateCrewShift)
+			auth.PUT("/crew-shifts/:id", h.UpdateCrewShift)
+			auth.DELETE("/crew-shifts/:id", h.DeleteCrewShift)
 		}
 	}
 

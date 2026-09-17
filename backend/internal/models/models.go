@@ -43,6 +43,30 @@ type Unit struct {
 	Finds            []Find         `json:"finds,omitempty" gorm:"foreignKey:UnitID"`
 }
 
+// CrewPerson 工地出勤人员（非系统账号，仅作排班花名册）
+type CrewPerson struct {
+	ID          uint           `json:"id" gorm:"primaryKey"`
+	DisplayName string         `json:"displayName" gorm:"size:64;not null"`
+	RoleLabel   string         `json:"roleLabel" gorm:"size:32"` // 技工/学生/监理
+	Active      bool           `json:"active" gorm:"not null;default:true"`
+	CreatedAt   time.Time      `json:"createdAt"`
+	UpdatedAt   time.Time      `json:"updatedAt"`
+	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
+}
+
+// CrewShift 工地排班：同一人员同一天在同一工地唯一
+type CrewShift struct {
+	ID        uint          `json:"id" gorm:"primaryKey"`
+	SiteID    uint          `json:"siteId" gorm:"not null;uniqueIndex:uk_shift_site_date_person"`
+	WorkDate  time.Time     `json:"workDate" gorm:"type:date;not null;uniqueIndex:uk_shift_site_date_person"`
+	PersonID  uint          `json:"personId" gorm:"not null;uniqueIndex:uk_shift_site_date_person"`
+	Slot      string        `json:"slot" gorm:"size:16;not null"` // morning/afternoon/full
+	CreatedAt time.Time     `json:"createdAt"`
+	UpdatedAt time.Time     `json:"updatedAt"`
+	Site      *Site         `json:"site,omitempty" gorm:"foreignKey:SiteID"`
+	Person    *CrewPerson   `json:"person,omitempty" gorm:"foreignKey:PersonID"`
+}
+
 type Material struct {
 	ID          uint           `json:"id" gorm:"primaryKey"`
 	Name        string         `json:"name" gorm:"uniqueIndex;size:64;not null"`

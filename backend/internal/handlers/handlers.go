@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"digcatalog/internal/models"
 
 	"github.com/gin-gonic/gin"
+	mysqlDriver "github.com/go-sql-driver/mysql"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -404,6 +406,256 @@ func (h *Handler) UpdateFind(c *gin.Context) {
 func (h *Handler) DeleteFind(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	if err := h.DB.Delete(&models.Find{}, id).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "已删除"})
+}
+
+// ---------- Crew Persons（工地人员花名册） ----------
+
+func (h *Handler) ListCrewPersons(c *gin.Context) {
+	var persons []models.CrewPerson
+	q := h.DB.Order("id asc")
+	if active := c.Query("active"); active != "" {
+		q = q.Where("active = ?", active == "true" || active == "1")
+	}
+	if err := q.Find(&persons).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, persons)
+}
+
+type crewPersonReq struct {
+	DisplayName string `json:"displayName"`
+	RoleLabel   string `json:"roleLabel"`
+	Active      *bool  `json:"active"`
+}
+
+func (h *Handler) CreateCrewPerson(c *gin.Context) {
+	var req crewPersonReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数无效"})
+		return
+	}
+	if req.DisplayName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "姓名必填"})
+		return
+	}
+	person := models.CrewPerson{
+		DisplayName: req.DisplayName,
+		RoleLabel:   req.RoleLabel,
+		Active:      true,
+	}
+	if req.Active != nil {
+		person.Active = *req.Active
+	}
+	if err := h.DB.Create(&person).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, person)
+}
+
+func (h *Handler) UpdateCrewPerson(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	var person models.CrewPerson
+	if err := h.DB.First(&person, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "人员不存在"})
+		return
+	}
+	var req crewPersonReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数无效"})
+		return
+	}
+	if req.DisplayName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "姓名必填"})
+		return
+	}
+	person.DisplayName = req.DisplayName
+	person.RoleLabel = req.RoleLabel
+	if req.Active != nil {
+		person.Active = *req.Active
+	}
+	if err := h.DB.Save(&person).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, person)
+}
+
+func (h *Handler) DeleteCrewPerson(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	var count int64
+	h.DB.Model(&models.CrewShift{}).Where("person_id = ?", id).Count(&count)
+	if count > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "该人员仍有排班记录，无法删除，可将其停用"})
+		return
+	}
+	if err := h.DB.Delete(&models.CrewPerson{}, id).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "已删除"})
+}
+
+// ---------- Crew Shifts（工地排班） ----------
+
+var crewSlots = map[string]bool{"morning": true, "afternoon": true, "full": true}
+
+type crewShiftReq struct {
+	SiteID   uint   `json:"siteId"`
+	WorkDate string `json:"workDate"` // YYYY-MM-DD
+	PersonID uint   `json:"personId"`
+	Slot     string `json:"slot"`
+}
+
+func isDuplicateErr(err error) bool {
+	var me *mysqlDriver.MySQLError
+	return errors.As(err, &me) && me.Number == 1062
+}
+
+// shiftConflict 同一人员同一天在同一工地只允许一条排班
+func (h *Handler) shiftConflict(siteID uint, workDate time.Time, personID uint, excludeID uint) bool {
+	var count int64
+	q := h.DB.Model(&models.CrewShift{}).
+		Where("site_id = ? AND work_date = ? AND person_id = ?", siteID, workDate, personID)
+	if excludeID != 0 {
+		q = q.Where("id <> ?", excludeID)
+	}
+	q.Count(&count)
+	return count > 0
+}
+
+func (h *Handler) ListCrewShifts(c *gin.Context) {
+	var shifts []models.CrewShift
+	q := h.DB.Preload("Site").Preload("Person").Order("work_date asc, id asc")
+	if siteID := c.Query("siteId"); siteID != "" {
+		q = q.Where("site_id = ?", siteID)
+	}
+	if from := c.Query("from"); from != "" {
+		if t, err := time.Parse("2006-01-02", from); err == nil {
+			q = q.Where("work_date >= ?", t)
+		}
+	}
+	if to := c.Query("to"); to != "" {
+		if t, err := time.Parse("2006-01-02", to); err == nil {
+			q = q.Where("work_date <= ?", t)
+		}
+	}
+	if err := q.Find(&shifts).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, shifts)
+}
+
+// validateShiftReq 校验并解析排班请求，返回工作日期；失败时已写响应
+func (h *Handler) validateShiftReq(c *gin.Context, req *crewShiftReq) (time.Time, bool) {
+	var day time.Time
+	if req.SiteID == 0 || req.PersonID == 0 || req.WorkDate == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "工地、人员、日期必填"})
+		return day, false
+	}
+	if !crewSlots[req.Slot] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "班次只能是 morning / afternoon / full"})
+		return day, false
+	}
+	t, err := time.Parse("2006-01-02", req.WorkDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "日期格式应为 YYYY-MM-DD"})
+		return day, false
+	}
+	var site models.Site
+	if err := h.DB.First(&site, req.SiteID).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "所属工地不存在"})
+		return day, false
+	}
+	var person models.CrewPerson
+	if err := h.DB.First(&person, req.PersonID).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "人员不存在"})
+		return day, false
+	}
+	if !person.Active {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "该人员已停用，无法排班"})
+		return day, false
+	}
+	return t, true
+}
+
+func (h *Handler) CreateCrewShift(c *gin.Context) {
+	var req crewShiftReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数无效"})
+		return
+	}
+	day, ok := h.validateShiftReq(c, &req)
+	if !ok {
+		return
+	}
+	if h.shiftConflict(req.SiteID, day, req.PersonID, 0) {
+		c.JSON(http.StatusConflict, gin.H{"error": "该人员当日在此工地已有排班"})
+		return
+	}
+	shift := models.CrewShift{
+		SiteID:   req.SiteID,
+		WorkDate: day,
+		PersonID: req.PersonID,
+		Slot:     req.Slot,
+	}
+	if err := h.DB.Create(&shift).Error; err != nil {
+		if isDuplicateErr(err) {
+			c.JSON(http.StatusConflict, gin.H{"error": "该人员当日在此工地已有排班"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	h.DB.Preload("Site").Preload("Person").First(&shift, shift.ID)
+	c.JSON(http.StatusCreated, shift)
+}
+
+func (h *Handler) UpdateCrewShift(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	var shift models.CrewShift
+	if err := h.DB.First(&shift, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "排班不存在"})
+		return
+	}
+	var req crewShiftReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数无效"})
+		return
+	}
+	day, ok := h.validateShiftReq(c, &req)
+	if !ok {
+		return
+	}
+	if h.shiftConflict(req.SiteID, day, req.PersonID, shift.ID) {
+		c.JSON(http.StatusConflict, gin.H{"error": "该人员当日在此工地已有排班"})
+		return
+	}
+	shift.SiteID = req.SiteID
+	shift.WorkDate = day
+	shift.PersonID = req.PersonID
+	shift.Slot = req.Slot
+	if err := h.DB.Save(&shift).Error; err != nil {
+		if isDuplicateErr(err) {
+			c.JSON(http.StatusConflict, gin.H{"error": "该人员当日在此工地已有排班"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	h.DB.Preload("Site").Preload("Person").First(&shift, shift.ID)
+	c.JSON(http.StatusOK, shift)
+}
+
+func (h *Handler) DeleteCrewShift(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	if err := h.DB.Delete(&models.CrewShift{}, id).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

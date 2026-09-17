@@ -107,5 +107,33 @@ func Run(db *gorm.DB) {
 		db.Create(&finds[i])
 	}
 
+	persons := []models.CrewPerson{
+		{DisplayName: "赵大力", RoleLabel: "技工", Active: true},
+		{DisplayName: "孙小梅", RoleLabel: "学生", Active: true},
+		{DisplayName: "周文博", RoleLabel: "监理", Active: true},
+		{DisplayName: "吴桂芳", RoleLabel: "技工", Active: true},
+	}
+	for i := range persons {
+		db.Create(&persons[i])
+	}
+
+	// 连续两天排班（今天与明天），保证演示时当日表有数据
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	tomorrow := today.AddDate(0, 0, 1)
+	shifts := []models.CrewShift{
+		{SiteID: sites[0].ID, WorkDate: today, PersonID: persons[0].ID, Slot: "morning"},
+		{SiteID: sites[0].ID, WorkDate: today, PersonID: persons[1].ID, Slot: "full"},
+		{SiteID: sites[0].ID, WorkDate: today, PersonID: persons[2].ID, Slot: "afternoon"},
+		{SiteID: sites[1].ID, WorkDate: today, PersonID: persons[3].ID, Slot: "morning"},
+		{SiteID: sites[0].ID, WorkDate: tomorrow, PersonID: persons[0].ID, Slot: "full"},
+		{SiteID: sites[0].ID, WorkDate: tomorrow, PersonID: persons[1].ID, Slot: "morning"},
+		{SiteID: sites[1].ID, WorkDate: tomorrow, PersonID: persons[2].ID, Slot: "morning"},
+		{SiteID: sites[1].ID, WorkDate: tomorrow, PersonID: persons[3].ID, Slot: "afternoon"},
+	}
+	for i := range shifts {
+		db.Create(&shifts[i])
+	}
+
 	log.Println("seed data inserted")
 }

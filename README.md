@@ -1,6 +1,6 @@
 # 考古发掘出土文物编目系统（DigCatalog）
 
-面向考古工地出土文物登记与编目的全栈演示项目：支持发掘工地、探方/发掘单位、出土文物、材质字典的 CRUD，以及概览统计。
+面向考古工地出土文物登记与编目的全栈演示项目：支持发掘工地、探方/发掘单位、出土文物、材质字典的 CRUD，工地人员排班，以及概览统计。
 
 ## 技术栈
 
@@ -50,7 +50,8 @@ docker compose up --build
 3. **探方/发掘单位 Unit** — 所属工地、编号、深度区间、地层简述
 4. **出土文物 Find** — 所属探方、登记号、器物类型、材质、完整度、出土日期、描述、存放位置
 5. **材质分类 Material** — 名称、描述（字典表）
-6. **概览页** — 工地数、探方数、文物总数、按器物类型统计
+6. **工地排班 CrewShift** — 挂靠工地的出勤排班：人员花名册（姓名、角色如技工/学生/监理、在岗状态），按工地与日期安排上午/下午/全天班次；同一人员同一天在同一工地唯一，重复排班返回 409。发掘工地列表页可直接跳入对应工地的排班表
+7. **概览页** — 工地数、探方数、文物总数、按器物类型统计
 
 ## API 前缀
 
@@ -61,6 +62,8 @@ docker compose up --build
 - `GET|POST|PUT|DELETE /api/units`
 - `GET|POST|PUT|DELETE /api/finds`
 - `GET|POST|PUT|DELETE /api/materials`
+- `GET|POST|PUT|DELETE /api/crew-persons`（人员花名册）
+- `GET|POST|PUT|DELETE /api/crew-shifts`（排班；`GET` 支持 `siteId`、`from`、`to` 查询参数按工地与日期区间过滤，同人同日同工地重复时返回 `409`）
 - `GET /api/overview`
 
 前端经 Nginx 将 `/api` 反代至后端容器 `http://backend:8080`。
